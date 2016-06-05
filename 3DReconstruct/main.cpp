@@ -9,19 +9,13 @@
 
 void eular2rot(double yaw,double pitch, double roll, cv::Mat& dest);
 
-//背景の閾値(mm)
-double thresh = 5.0;
-
-//背景の3次元点
-std::vector<cv::Point3f> reconstructPoint_back;
-std::vector<cv::Point3f> reconstructPoint_obj;
-
-//--PLY保存系メソッド--//
+//--PLY保存系メソッド--//　//TODO:分ける
 //PLY形式で保存
 void savePLY(std::vector<cv::Point3f> points, const std::string &fileName);
 void savePLY_with_normal(std::vector<cv::Point3f> points, std::vector<cv::Point3f> normals, const std::string &fileName);
 void savePLY_with_normal_mesh(std::vector<cv::Point3f> points, std::vector<cv::Point3f> normals, std::vector<cv::Point3i> meshes, const std::string &fileName);
 
+//--filter系メソッド--//　//TODO:分ける
 //法線ベクトルを求める
 std::vector<cv::Point3f> getNormalVectors(std::vector<cv::Point3f> points);
 //ダウンサンプリング
@@ -36,8 +30,6 @@ int main()
 	printf("1：背景取得\n");
 	printf("2：対象の3次元復元\n");
 	printf("3：メッシュの生成及びPLY形式での保存\n");
-
-
 	printf("w：待機時に白画像を投影するかしないか\n");
 	printf("\n");
 
@@ -59,6 +51,12 @@ int main()
 	std::vector<std::vector<cv::Point2f>>	projectorPoints;
 	int calib_count = 0;
 
+	//背景の閾値(mm)
+	double thresh = 5.0;
+
+	//背景と対象物の3次元点
+	std::vector<cv::Point3f> reconstructPoint_back;
+	std::vector<cv::Point3f> reconstructPoint_obj;
 
 	// キー入力受付用の無限ループ
 	while(true){
@@ -342,24 +340,26 @@ int main()
 
 		//PLY形式で保存
 		case '3':
-			//有効な点のみ取りだす(= -1は除く)
-			std::vector<cv::Point3f> validPoints;
-			for(int n = 0; n < reconstructPoint_obj.size(); n++)
 			{
-				if(reconstructPoint_obj[n].x != -1) validPoints.emplace_back(cv::Point3f(reconstructPoint_obj[n].x/1000, reconstructPoint_obj[n].y/1000, reconstructPoint_obj[n].z/1000)); //単位をmに
+				//有効な点のみ取りだす(= -1は除く)
+				std::vector<cv::Point3f> validPoints;
+				for(int n = 0; n < reconstructPoint_obj.size(); n++)
+				{
+					if(reconstructPoint_obj[n].x != -1) validPoints.emplace_back(cv::Point3f(reconstructPoint_obj[n].x/1000, reconstructPoint_obj[n].y/1000, reconstructPoint_obj[n].z/1000)); //単位をmに
+				}
+
+				//ダウンサンプリング
+				std::vector<cv::Point3f> sampledPoints = getDownSampledPoints(validPoints, 0.01f);
+
+				//法線を求める
+				std::vector<cv::Point3f> normalVecs = getNormalVectors(sampledPoints);
+
+				//メッシュを求める
+				std::vector<cv::Point3i> meshes = getMeshVectors(sampledPoints, normalVecs);
+
+				//PLY形式で保存
+				savePLY_with_normal_mesh(sampledPoints, normalVecs, meshes, "reconstructPoint_obj_mesh.ply");
 			}
-
-			//ダウンサンプリング
-			std::vector<cv::Point3f> sampledPoints = getDownSampledPoints(validPoints, 0.01f);
-
-			//法線を求める
-			std::vector<cv::Point3f> normalVecs = getNormalVectors(sampledPoints);
-
-			//メッシュを求める
-			std::vector<cv::Point3i> meshes = getMeshVectors(sampledPoints, normalVecs);
-
-			//PLY形式で保存
-			savePLY_with_normal_mesh(sampledPoints, normalVecs, meshes, "reconstructPoint_obj_mesh.ply");
 			break;
 
 		case 'w':
