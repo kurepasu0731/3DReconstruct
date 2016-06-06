@@ -336,16 +336,18 @@ void Calibration::reconstruction(std::vector<cv::Point3f> &reconstructPoint, con
 
 
 // 3ŽŸŒ³“_ŒQ‚Ì•`‰æ
-void Calibration::pointCloudRender(const std::vector<cv::Point3f> &reconstructPoint, const std::vector<cv::Point2f> &imagePoint, const cv::Mat &image, 
-								std::string &windowName, const cv::Mat& R, const cv::Mat& t)
+void Calibration::pointCloudRender(const std::vector<cv::Point3f> &reconstructPoint, const cv::Mat &image, std::string &windowName, const cv::Mat& R, const cv::Mat& t)
+//void Calibration::pointCloudRender(const std::vector<cv::Point3f> &reconstructPoint, const std::vector<cv::Point2f> &imagePoint, const cv::Mat &image, 
+//								std::string &windowName, const cv::Mat& R, const cv::Mat& t)
 {
 
-	//cv::Mat viewer(CAMERA_HEIGHT, CAMERA_WIDTH, CV_8UC3, cv::Scalar(0));
-	cv::Mat viewer(PROJECTOR_HEIGHT, PROJECTOR_WIDTH, CV_8UC3, cv::Scalar(0));
+	cv::Mat viewer(CAMERA_HEIGHT, CAMERA_WIDTH, CV_8UC3, cv::Scalar(0));
+	//cv::Mat viewer(PROJECTOR_HEIGHT, PROJECTOR_WIDTH, CV_8UC3, cv::Scalar(0));
 
 	// 2ŽŸŒ³•½–Ê‚Ö“Š‰e
 	std::vector<cv::Point2f> pt;
-    cv::projectPoints(reconstructPoint, R, t, proj_K, cv::Mat(), pt); 
+    //cv::projectPoints(reconstructPoint, R, t, proj_K, cv::Mat(), pt); 
+    cv::projectPoints(reconstructPoint, R, t, cam_K, cv::Mat(), pt); 
 	
 	// ‹^Ž—Zƒoƒbƒtƒ@
 	cv::Mat z_buffer(CAMERA_HEIGHT, CAMERA_WIDTH, CV_64F, cv::Scalar(0.0));

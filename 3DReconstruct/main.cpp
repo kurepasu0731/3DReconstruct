@@ -9,6 +9,9 @@
 
 void eular2rot(double yaw,double pitch, double roll, cv::Mat& dest);
 
+//XMLファイル読み込み
+std::vector<cv::Point3f> loadXMLfile(const std::string &fileName);
+
 //--PLY保存系メソッド--//　//TODO:分ける
 //PLY形式で保存
 void savePLY(std::vector<cv::Point3f> points, const std::string &fileName);
@@ -30,6 +33,7 @@ int main()
 	printf("1：背景取得\n");
 	printf("2：対象の3次元復元\n");
 	printf("3：メッシュの生成及びPLY形式での保存\n");
+	printf("4: 取得済みデータ読み込みデータで背景差分\n");
 	printf("w：待機時に白画像を投影するかしないか\n");
 	printf("\n");
 
@@ -52,7 +56,7 @@ int main()
 	int calib_count = 0;
 
 	//背景の閾値(mm)
-	double thresh = 5.0;
+	double thresh = 300.0;
 
 	//背景と対象物の3次元点
 	std::vector<cv::Point3f> reconstructPoint_back;
@@ -174,7 +178,8 @@ int main()
 					t.at<double>(2,0)=viewpoint.z;
 
 					//カメラ画素→3次元点
-					calib.pointCloudRender(reconstructPoint_back, imagePoint_back, cam2, std::string("viewer"), R, t);
+					calib.pointCloudRender(reconstructPoint_back, cam2, std::string("viewer"), R, t);
+					//calib.pointCloudRender(reconstructPoint_back, imagePoint_back, cam2, std::string("viewer"), R, t);
 
 					key = cv::waitKey(0);
 					if(key=='w')
@@ -256,22 +261,10 @@ int main()
 				// 3次元復元
 				calib.reconstruction(reconstructPoint_obj, undistort_projPoint_obj, undistort_imagePoint_obj, isValid_obj);
 
-				//TODO:背景除去
-				for(int i = 0; i < reconstructPoint_obj.size(); i++)
-				{
-					//閾値よりも深度の変化が小さかったら、(-1,-1,-1)で埋める
-					if(abs(reconstructPoint_obj[i].z - reconstructPoint_back[i].z) < thresh)
-					{
-						reconstructPoint_obj[i].x = -1;
-						reconstructPoint_obj[i].y = -1;
-						reconstructPoint_obj[i].z = -1;
-					}
-				}
-
 				//==保存==//
 				cv::FileStorage fs_obj("./reconstructPoints_obj.xml", cv::FileStorage::WRITE);
 				write(fs_obj, "points", reconstructPoint_obj);
-				std::cout << "background points saved." << std::endl;
+				std::cout << "object points saved." << std::endl;
 
 				//**********************************************************************************
 
@@ -299,7 +292,8 @@ int main()
 					t.at<double>(2,0)=viewpoint.z;
 
 					//カメラ画素→3次元点
-					calib.pointCloudRender(reconstructPoint_obj, imagePoint_obj, cam2, std::string("viewer"), R, t);
+					calib.pointCloudRender(reconstructPoint_obj, cam2, std::string("viewer"), R, t);
+					//calib.pointCloudRender(reconstructPoint_obj, imagePoint_obj, cam2, std::string("viewer"), R, t);
 
 					key = cv::waitKey(0);
 					if(key=='w')
@@ -359,6 +353,89 @@ int main()
 
 				//PLY形式で保存
 				savePLY_with_normal_mesh(sampledPoints, normalVecs, meshes, "reconstructPoint_obj_mesh.ply");
+			}
+			break;
+
+		case '4':
+			{
+				reconstructPoint_back = loadXMLfile("reconstructPoints_background.xml");
+				reconstructPoint_obj = loadXMLfile("reconstructPoints_obj.xml");
+
+				//TODO:背景除去
+				for(int i = 0; i < reconstructPoint_obj.size(); i++)
+				{
+					//閾値よりも深度の変化が小さかったら、(-1,-1,-1)で埋める
+					if(reconstructPoint_obj[i].z == -1 || reconstructPoint_back[i].z == -1 || abs(reconstructPoint_obj[i].z - reconstructPoint_back[i].z) < thresh)
+					{
+						reconstructPoint_obj[i].x = -1;
+						reconstructPoint_obj[i].y = -1;
+						reconstructPoint_obj[i].z = -1;
+					}
+				}
+
+				//==保存==//
+				cv::FileStorage fs_obj("./reconstructPoints_obj_backremove.xml", cv::FileStorage::WRITE);
+				write(fs_obj, "points", reconstructPoint_obj);
+				std::cout << "back removed object points saved." << std::endl;
+
+				// 描画
+				cv::Mat R = cv::Mat::eye(3,3,CV_64F);
+				cv::Mat t = cv::Mat::zeros(3,1,CV_64F);
+				int key=0;
+				cv::Point3d viewpoint(0.0,0.0,400.0);		// 視点位置
+				cv::Point3d lookatpoint(0.0,0.0,0.0);	// 視線方向
+				const double step = 50;
+
+				// キーボード操作
+				while(true)
+				{
+					//// 回転の更新
+					double x=(lookatpoint.x-viewpoint.x);
+					double y=(lookatpoint.y-viewpoint.y);
+					double z=(lookatpoint.z-viewpoint.z);
+					double pitch =asin(x/sqrt(x*x+z*z))/CV_PI*180.0;
+					double yaw   =asin(-y/sqrt(y*y+z*z))/CV_PI*180.0;
+					eular2rot(yaw, pitch, 0, R);
+					// 移動の更新
+					t.at<double>(0,0)=viewpoint.x;
+					t.at<double>(1,0)=viewpoint.y;
+					t.at<double>(2,0)=viewpoint.z;
+
+					//カメラ画素→3次元点
+					calib.pointCloudRender(reconstructPoint_obj, cam2, std::string("viewer"), R, t);
+
+					key = cv::waitKey(0);
+					if(key=='w')
+					{
+						viewpoint.y+=step;
+					}
+					if(key=='s')
+					{
+						viewpoint.y-=step;
+					}
+					if(key=='a')
+					{
+						viewpoint.x+=step;
+					}
+					if(key=='d')
+					{
+						viewpoint.x-=step;
+					}
+					if(key=='z')
+					{
+						viewpoint.z+=step;
+					}
+					if(key=='x')
+					{
+						viewpoint.z-=step;
+					}
+					if(key=='q')
+					{
+						break;
+					}
+				}
+
+
 			}
 			break;
 
@@ -461,7 +538,7 @@ void savePLY_with_normal_mesh(std::vector<cv::Point3f> points, std::vector<cv::P
 
 	//ファイルに書き込む
 	//ヘッダの設定
-	fprintf(fp,"ply\nformat ascii 1.0\nelement vertex %d\nproperty float x\nproperty float y\nproperty float z\nproperty float nx\nproperty float ny\nproperty float nz\nelement face %d\nproperty list uchar int vertex_indices\nend_header\n", points.size(), meshes.size());
+	fprintf(fp,"ply\nformat ascii 1.0\nelement vertex %d\nproperty float x\nproperty float y\nproperty float z\nproperty float nx\nproperty float ny\nproperty float nz\nelement face %d\nproperty list ushort int vertex_indices\nend_header\n", points.size(), meshes.size());
 
 	//3次元点群
 	//m単位で保存（xmlはmm）
@@ -472,7 +549,7 @@ void savePLY_with_normal_mesh(std::vector<cv::Point3f> points, std::vector<cv::P
 	//面情報記述
 	for(int n = 0; n < meshes.size(); n++)
 	{
-	   fprintf(fp, "3%d %d %d\n", meshes[n].x, meshes[n].y, meshes[n].z);
+	   fprintf(fp, "3 %d %d %d\n", meshes[n].x, meshes[n].y, meshes[n].z);
 	}
 	//ファイルクローズ
 	fclose(fp);
@@ -589,6 +666,17 @@ std::vector<cv::Point3i> getMeshVectors(std::vector<cv::Point3f> points, std::ve
 	return dst_meshes;
 }
 
+// XMLファイル読み込み
+std::vector<cv::Point3f> loadXMLfile(const std::string &fileName)
+{
+	//読み込む点群
+	std::vector<cv::Point3f> reconstructPoints;
+	// xmlファイルの読み込み
+	cv::FileStorage cvfs(fileName, cv::FileStorage::READ);
+	cvfs["points"] >> reconstructPoints;
+
+	return reconstructPoints;
+}
 // オイラー角を行列に変換
 void eular2rot(double yaw,double pitch, double roll, cv::Mat& dest)
 {
