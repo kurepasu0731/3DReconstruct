@@ -14,11 +14,11 @@
 #include <pcl/kdtree/kdtree_flann.h>
 #include <pcl/surface/gp3.h>
 
-#define PROJECTOR_WIDTH 1920
-#define PROJECTOR_HEIGHT 1200
+#define PROJECTOR_WIDTH 1280
+#define PROJECTOR_HEIGHT 800
 #define CAMERA_WIDTH 1920
 #define CAMERA_HEIGHT 1080
-#define DISPLAY_NUMBER 0
+#define DISPLAY_NUMBER 2
 #define DISPLAY_WIDTH 1680
 #define DISPLAY_HEIGHT 0
 

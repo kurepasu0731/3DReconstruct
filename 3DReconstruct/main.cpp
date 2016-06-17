@@ -34,6 +34,7 @@ int main()
 	printf("2：対象の3次元復元\n");
 	printf("3：メッシュの生成及びPLY形式での保存\n");
 	printf("4: 取得済みデータ読み込みデータで背景差分\n");
+	printf("5: 取得済みデータ読み込み,カメラから見た対象物体の画素にマスク(-2)をかける\n");
 	printf("w：待機時に白画像を投影するかしないか\n");
 	printf("\n");
 
@@ -375,6 +376,103 @@ int main()
 
 				//==保存==//
 				cv::FileStorage fs_obj("./reconstructPoints_obj_backremove.xml", cv::FileStorage::WRITE);
+				write(fs_obj, "points", reconstructPoint_obj);
+				std::cout << "back removed object points saved." << std::endl;
+
+				// 描画
+				cv::Mat R = cv::Mat::eye(3,3,CV_64F);
+				cv::Mat t = cv::Mat::zeros(3,1,CV_64F);
+				int key=0;
+				cv::Point3d viewpoint(0.0,0.0,400.0);		// 視点位置
+				cv::Point3d lookatpoint(0.0,0.0,0.0);	// 視線方向
+				const double step = 50;
+
+				// キーボード操作
+				while(true)
+				{
+					//// 回転の更新
+					double x=(lookatpoint.x-viewpoint.x);
+					double y=(lookatpoint.y-viewpoint.y);
+					double z=(lookatpoint.z-viewpoint.z);
+					double pitch =asin(x/sqrt(x*x+z*z))/CV_PI*180.0;
+					double yaw   =asin(-y/sqrt(y*y+z*z))/CV_PI*180.0;
+					eular2rot(yaw, pitch, 0, R);
+					// 移動の更新
+					t.at<double>(0,0)=viewpoint.x;
+					t.at<double>(1,0)=viewpoint.y;
+					t.at<double>(2,0)=viewpoint.z;
+
+					//カメラ画素→3次元点
+					calib.pointCloudRender(reconstructPoint_obj, cam2, std::string("viewer"), R, t);
+
+					key = cv::waitKey(0);
+					if(key=='w')
+					{
+						viewpoint.y+=step;
+					}
+					if(key=='s')
+					{
+						viewpoint.y-=step;
+					}
+					if(key=='a')
+					{
+						viewpoint.x+=step;
+					}
+					if(key=='d')
+					{
+						viewpoint.x-=step;
+					}
+					if(key=='z')
+					{
+						viewpoint.z+=step;
+					}
+					if(key=='x')
+					{
+						viewpoint.z-=step;
+					}
+					if(key=='q')
+					{
+						break;
+					}
+				}
+
+
+			}
+			break;
+
+		case '5':
+			{
+				reconstructPoint_back = loadXMLfile("reconstructPoints_background.xml");
+				reconstructPoint_obj = loadXMLfile("reconstructPoints_obj.xml");
+
+				for(int i = 0; i < reconstructPoint_obj.size(); i++)
+				{
+					//背景点群で(-1, -1, -1)だったところは、投影領域外
+					if(reconstructPoint_back[i].z == -1 && reconstructPoint_obj[i].z == -1) continue;
+
+					//投影領域内で深度が閾値以上になった部分は、投影対象物エリア、または影部分
+					if(abs(reconstructPoint_obj[i].z - reconstructPoint_back[i].z) > thresh)
+					{
+						//影部分はobj点群では(-1, -1, -1)であるので、わかり、その部分は壁として残す
+						//また、obj点群で値が取れていたとしても、差が閾値以下なら壁として残す？
+						if(reconstructPoint_obj[i].z == -1)
+						{
+							reconstructPoint_obj[i].x = reconstructPoint_back[i].x;
+							reconstructPoint_obj[i].y = reconstructPoint_back[i].y;
+							reconstructPoint_obj[i].z = reconstructPoint_back[i].z;
+						}
+						else 
+						{
+							reconstructPoint_obj[i].x = -2;
+							reconstructPoint_obj[i].y = -2;
+							reconstructPoint_obj[i].z = -2;
+						}
+					}
+
+				}
+
+				//==保存==//
+				cv::FileStorage fs_obj("./reconstructPoints_camera_mask.xml", cv::FileStorage::WRITE);
 				write(fs_obj, "points", reconstructPoint_obj);
 				std::cout << "back removed object points saved." << std::endl;
 
