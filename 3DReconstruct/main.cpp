@@ -29,11 +29,11 @@ std::vector<cv::Point3i> getMeshVectors(std::vector<cv::Point3f> points, std::ve
 int main()
 {
 
-	printf("0：キャリブレーションの読み込み\n");
-	printf("1：背景取得\n");
-	printf("2：対象の3次元復元\n");
-	printf("3：メッシュの生成及びPLY形式での保存\n");
-	printf("4: 取得済みデータ読み込みデータで背景差分\n");
+	printf("0：キャリブレーションの読み込み\n"); //1
+	printf("1：背景取得\n");//2
+	printf("2：対象の3次元復元\n");//3
+	printf("3：メッシュの生成及びPLY形式での保存\n");//5
+	printf("4: 取得済みデータ読み込みデータで背景差分\n");//4
 	printf("5: 取得済みデータ読み込み,カメラから見た対象物体の画素にマスク(-2)をかける\n");
 	printf("w：待機時に白画像を投影するかしないか\n");
 	printf("\n");
@@ -57,11 +57,14 @@ int main()
 	int calib_count = 0;
 
 	//背景の閾値(mm)
-	double thresh = 300.0;
+	double thresh = 1200.0;
 
 	//背景と対象物の3次元点
 	std::vector<cv::Point3f> reconstructPoint_back;
 	std::vector<cv::Point3f> reconstructPoint_obj;
+
+	//背景除去後の3次元点
+	std::vector<cv::Point3f> reconstructPoint_obj_backremoved;
 
 	// キー入力受付用の無限ループ
 	while(true){
@@ -344,7 +347,7 @@ int main()
 				}
 
 				//ダウンサンプリング
-				std::vector<cv::Point3f> sampledPoints = getDownSampledPoints(validPoints, 0.01f);
+				std::vector<cv::Point3f> sampledPoints = getDownSampledPoints(validPoints, 0.005f);
 
 				//法線を求める
 				std::vector<cv::Point3f> normalVecs = getNormalVectors(sampledPoints);
@@ -366,7 +369,12 @@ int main()
 				for(int i = 0; i < reconstructPoint_obj.size(); i++)
 				{
 					//閾値よりも深度の変化が小さかったら、(-1,-1,-1)で埋める
-					if(reconstructPoint_obj[i].z == -1 || reconstructPoint_back[i].z == -1 || abs(reconstructPoint_obj[i].z - reconstructPoint_back[i].z) < thresh)
+					//if(reconstructPoint_obj[i].z == -1 || reconstructPoint_back[i].z == -1 || abs(reconstructPoint_obj[i].z - reconstructPoint_back[i].z) < thresh)
+					//reconstructPoint_obj[i].x = -1;
+					//reconstructPoint_obj[i].y = -1;
+					//reconstructPoint_obj[i].z = -1;
+
+					if(reconstructPoint_obj[i].z >= thresh)
 					{
 						reconstructPoint_obj[i].x = -1;
 						reconstructPoint_obj[i].y = -1;
@@ -587,16 +595,16 @@ void savePLY(std::vector<cv::Point3f> points, const std::string &fileName)
 //PLY形式で保存(法線あり)
 void savePLY_with_normal(std::vector<cv::Point3f> points, std::vector<cv::Point3f> normals, const std::string &fileName)
 {
-	//重心を求める
-	double cx = 0, cy = 0, cz = 0;
-	for (int n = 0; n < points.size(); n++){
-		cx += points[n].x;
-		cy += points[n].y;
-		cz += points[n].z;
-	}
-	cx /= points.size();
-	cy /= points.size();
-	cz /= points.size();
+	////重心を求める
+	//double cx = 0, cy = 0, cz = 0;
+	//for (int n = 0; n < points.size(); n++){
+	//	cx += points[n].x;
+	//	cy += points[n].y;
+	//	cz += points[n].z;
+	//}
+	//cx /= points.size();
+	//cy /= points.size();
+	//cz /= points.size();
 
 	//ファイルオープン
 	FILE *fp;
@@ -610,7 +618,9 @@ void savePLY_with_normal(std::vector<cv::Point3f> points, std::vector<cv::Point3
 	//m単位で保存（xmlはmm）
 	//重心を原点にする
 	for (int n = 0; n < points.size(); n++){
-	   fprintf(fp, "%f %f %f %f %f %f \n", (points[n].x - cx), (points[n].y - cy), (points[n].z - cz), normals[n].x, normals[n].y, normals[n].z);
+	   //fprintf(fp, "%f %f %f %f %f %f \n", (points[n].x - cx), (points[n].y - cy), (points[n].z - cz), normals[n].x, normals[n].y, normals[n].z);
+		fprintf(fp, "%f %f %f %f %f %f \n", points[n].x, points[n].y, points[n].z, normals[n].x, normals[n].y, normals[n].z);
+
 	}
 	//ファイルクローズ
 	fclose(fp);
@@ -619,16 +629,16 @@ void savePLY_with_normal(std::vector<cv::Point3f> points, std::vector<cv::Point3
 //PLY形式で保存(法線あり,meshあり)
 void savePLY_with_normal_mesh(std::vector<cv::Point3f> points, std::vector<cv::Point3f> normals, std::vector<cv::Point3i> meshes, const std::string &fileName)
 {
-	//重心を求める
-	double cx = 0, cy = 0, cz = 0;
-	for (int n = 0; n < points.size(); n++){
-		cx += points[n].x;
-		cy += points[n].y;
-		cz += points[n].z;
-	}
-	cx /= points.size();
-	cy /= points.size();
-	cz /= points.size();
+	////重心を求める
+	//double cx = 0, cy = 0, cz = 0;
+	//for (int n = 0; n < points.size(); n++){
+	//	cx += points[n].x;
+	//	cy += points[n].y;
+	//	cz += points[n].z;
+	//}
+	//cx /= points.size();
+	//cy /= points.size();
+	//cz /= points.size();
 
 	//ファイルオープン
 	FILE *fp;
@@ -642,7 +652,8 @@ void savePLY_with_normal_mesh(std::vector<cv::Point3f> points, std::vector<cv::P
 	//m単位で保存（xmlはmm）
 	//重心を原点にする
 	for (int n = 0; n < points.size(); n++){
-	   fprintf(fp, "%f %f %f %f %f %f \n", (points[n].x - cx), (points[n].y - cy), (points[n].z - cz), normals[n].x, normals[n].y, normals[n].z);
+	   //fprintf(fp, "%f %f %f %f %f %f \n", (points[n].x - cx), (points[n].y - cy), (points[n].z - cz), normals[n].x, normals[n].y, normals[n].z);
+	   fprintf(fp, "%f %f %f %f %f %f \n", points[n].x, points[n].y, points[n].z, normals[n].x, normals[n].y, normals[n].z);
 	}
 	//面情報記述
 	for(int n = 0; n < meshes.size(); n++)
