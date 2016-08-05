@@ -334,6 +334,128 @@ void Calibration::reconstruction(std::vector<cv::Point3f> &reconstructPoint, con
 	}
 }
 
+//復元点の平滑化処理
+void Calibration::smoothReconstructPoints(std::vector<cv::Point3f> &reconstructPoint, std::vector<cv::Point3f> &smoothed_reconstructPoint, int size)
+{
+	std::vector<cv::Point3f> smoothedPoints;
+	for(int h = (size - 1)/2; h < CAMERA_HEIGHT- (size - 1)/2; h++)
+		for(int w = (size - 1)/2; w < CAMERA_WIDTH - (size - 1)/2; w++)
+		{
+			//メディアンフィルタによる平滑化
+			float z__ = medianfilter(w, h, size, reconstructPoint);
+			if(z__ >= 0.0f) //カメラより手前側にあるはず
+				smoothedPoints.emplace_back(getWorldpoint(w, h, z__));
+			else
+				smoothedPoints.emplace_back(cv::Point3f(-1.0f, -1.0f, -1.0f));
+		}
+}
+
+//カメラ画像座標と深度値から、カメラ中心の3次元点にする
+cv::Point3f Calibration::getWorldpoint(int u, int v, float Z)
+{
+	//正規化座標系に戻す
+	double x_ = (u - cam_K.at<double>(0,2)) / cam_K.at<double>(0,0);
+	double y_ = (v - cam_K.at<double>(1,2)) / cam_K.at<double>(1,1); 
+	//歪み除去
+	double r2 = x_ * x_ + y_ * y_; 
+	double x__ = x_ * (1 + cam_dist.at<double>(0, 0) * r2 + cam_dist.at<double>(0, 1) * r2 * r2) + 2 * cam_dist.at<double>(0, 2) * x_ * y_ + cam_dist.at<double>(0, 3) * (r2 + 2 * x_ * x_);
+	double y__ = y_ * (1 + cam_dist.at<double>(0, 0) * r2 + cam_dist.at<double>(0, 1) * r2 * r2) + cam_dist.at<double>(0, 2) * (r2 + 2 * y_ * y_) + 2 * cam_dist.at<double>(0, 3) * x_ * y_;
+	//歪みのない正規化座標から3次元点にする
+	cv::Point3f _worldPoint((float) x__ * Z, (float) y__ * Z, Z);
+
+	return _worldPoint;
+}
+
+//--ソート用--//
+ /*
+   * 軸要素の選択
+   * 順に見て、最初に見つかった異なる2つの要素のうち、
+   * 大きいほうの番号を返します。
+   * 全部同じ要素の場合は -1 を返します。
+   */
+  int pivot(float* a,int i,int j){
+    int k=i+1;
+    while(k<=j && a[i]==a[k]) k++;
+    if(k>j) return -1;
+    if(a[i]>=a[k]) return i;
+    return k;
+  }
+
+  /*
+   * パーティション分割
+   * a[i]～a[j]の間で、x を軸として分割します。
+   * x より小さい要素は前に、大きい要素はうしろに来ます。
+   * 大きい要素の開始番号を返します。
+   */
+  int partition(float* a,int i,int j,float x){
+    int l=i,r=j;
+
+    // 検索が交差するまで繰り返します
+    while(l<=r){
+
+      // 軸要素以上のデータを探します
+      while(l<=j && a[l]<x)  l++;
+
+      // 軸要素未満のデータを探します
+      while(r>=i && a[r]>=x) r--;
+
+      if(l>r) break;
+      float t=a[l];
+      a[l]=a[r];
+      a[r]=t;
+      l++; r--;
+    }
+    return l;
+  }
+
+  /*
+   * クイックソート（再帰用）
+   * 配列aの、a[i]からa[j]を並べ替えます。
+   */
+void quickSort(float* a,int i,int j){
+    if(i==j) return;
+    int p=pivot(a,i,j);
+    if(p!=-1){
+      int k=partition(a,i,j,a[p]);
+      quickSort(a,i,k-1);
+      quickSort(a,k,j);
+    }
+  }
+
+  /*
+   * ソート
+   */
+void sort(float* a, int length){
+    quickSort(a,0,length-1);
+  }
+
+
+//メディアンフィルタ
+float Calibration::medianfilter(int cx, int cy, int size, std::vector<cv::Point3f> reconstructPoint)
+{
+	//並べ替え要素
+	float *Zs = new float[size * size];
+	int iter = 0;
+	for(int h = cy - (size - 1)/2; h <= cy + (size - 1)/2; h++)
+		for(int w = cx - (size - 1)/2; w <= cx + (size - 1)/2; w++)
+		{
+			Zs[iter] = reconstructPoint[h * CAMERA_WIDTH + w].z;
+			iter++;
+		}
+	//並べ替え
+	sort(Zs, size*size);
+
+	//表示
+	for(int i = 0; i < size*size; i++)
+		std::cout << Zs[i] << ", " << std::ends;
+
+	std::cout << "" << std::endl;
+
+	float dst = Zs[(size * size - 1)/2] ;
+	delete[] Zs;
+	return dst;
+}
+
 
 // 3次元点群の描画
 void Calibration::pointCloudRender(const std::vector<cv::Point3f> &reconstructPoint, const cv::Mat &image, std::string &windowName, const cv::Mat& R, const cv::Mat& t)
@@ -372,12 +494,16 @@ void Calibration::pointCloudRender(const std::vector<cv::Point3f> &reconstructPo
 				//int image_x = (int)(imagePoint[i].x+0.5);
 				//int image_y = (int)(imagePoint[i].y+0.5);
 				//カメラ画素上の色を付ける
-				int image_x = i % CAMERA_WIDTH;
-				int image_y = (int)(i / CAMERA_WIDTH);
+				//int image_x = i % CAMERA_WIDTH;
+				//int image_y = (int)(i / CAMERA_WIDTH);
 
-				viewer.at<uchar>(pt_y, 3*pt_x+0) = image.at<uchar>(image_y, 3*image_x+0);
-				viewer.at<uchar>(pt_y, 3*pt_x+1) = image.at<uchar>(image_y, 3*image_x+1);
-				viewer.at<uchar>(pt_y, 3*pt_x+2) = image.at<uchar>(image_y, 3*image_x+2);
+				//とりあえず白色
+				viewer.at<uchar>(pt_y, 3*pt_x+0) = 255;
+				viewer.at<uchar>(pt_y, 3*pt_x+1) = 255;
+				viewer.at<uchar>(pt_y, 3*pt_x+2) = 255;
+				//viewer.at<uchar>(pt_y, 3*pt_x+0) = image.at<uchar>(image_y, 3*image_x+0);
+				//viewer.at<uchar>(pt_y, 3*pt_x+1) = image.at<uchar>(image_y, 3*image_x+1);
+				//viewer.at<uchar>(pt_y, 3*pt_x+2) = image.at<uchar>(image_y, 3*image_x+2);
 				z_buffer.at<double>(pt_y,pt_x) = reconstructPoint[i].z;
 			}
 		}

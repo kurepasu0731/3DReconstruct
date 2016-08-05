@@ -46,9 +46,18 @@ public:
 	// 3次元復元
 	void reconstruction(std::vector<cv::Point3f> &reconstructPoint, const std::vector<cv::Point2f> &projPoint, const std::vector<cv::Point2f> &imagePoint, const std::vector<int> &flag);
 
+	//復元点の平滑化処理
+	void smoothReconstructPoints(std::vector<cv::Point3f> &reconstructPoint, std::vector<cv::Point3f> &smoothed_reconstructPoint, int size); 
+
+	//カメラ画像座標と深度値から、カメラ中心の3次元点にする
+	cv::Point3f Calibration::getWorldpoint(int u, int v, float Z);
+
+	//メディアンフィルタ
+	float medianfilter(int cx, int cy, int size, std::vector<cv::Point3f> reconstructPoint);
+
 	// 3次元点群の描画
 	//void pointCloudRender(const std::vector<cv::Point3f> &reconstructPoint, const std::vector<cv::Point2f> &imagePoint, const cv::Mat &image, std::string &windowName, const cv::Mat& R, const cv::Mat& t);
-	void Calibration::pointCloudRender(const std::vector<cv::Point3f> &reconstructPoint, const cv::Mat &image, std::string &windowName, const cv::Mat& R, const cv::Mat& t);
+	void pointCloudRender(const std::vector<cv::Point3f> &reconstructPoint, const cv::Mat &image, std::string &windowName, const cv::Mat& R, const cv::Mat& t);
 
 
 	/***** メンバ変数 *****/

@@ -35,6 +35,7 @@ int main()
 	printf("3：メッシュの生成及びPLY形式での保存\n");//5
 	printf("4: 取得済みデータ読み込みデータで背景差分\n");//4
 	printf("5: 取得済みデータ読み込み,カメラから見た対象物体の画素にマスク(-2)をかける\n");
+	printf("6: データ読み込んでフィルタ処理\n");
 	printf("w：待機時に白画像を投影するかしないか\n");
 	printf("\n");
 
@@ -46,7 +47,7 @@ int main()
 	cv::namedWindow(windowNameCamera, cv::WINDOW_AUTOSIZE);
 	cv::moveWindow(windowNameCamera, 500, 300);
 
-	static bool prjWhite = true;
+	static bool prjWhite = false;
 
 
 	// キャリブレーション用
@@ -509,6 +510,80 @@ int main()
 
 					//カメラ画素→3次元点
 					calib.pointCloudRender(reconstructPoint_obj, cam2, std::string("viewer"), R, t);
+
+					key = cv::waitKey(0);
+					if(key=='w')
+					{
+						viewpoint.y+=step;
+					}
+					if(key=='s')
+					{
+						viewpoint.y-=step;
+					}
+					if(key=='a')
+					{
+						viewpoint.x+=step;
+					}
+					if(key=='d')
+					{
+						viewpoint.x-=step;
+					}
+					if(key=='z')
+					{
+						viewpoint.z+=step;
+					}
+					if(key=='x')
+					{
+						viewpoint.z-=step;
+					}
+					if(key=='q')
+					{
+						break;
+					}
+				}
+
+
+			}
+			break;
+
+		case '6':
+			{
+				std::vector<cv::Point3f> reconstructPoint = loadXMLfile("reconstructPoints_background.xml");
+				std::vector<cv::Point3f> smoothed_reconstructPoint;
+
+				//メディアンフィルタによる平滑化
+				calib.smoothReconstructPoints(reconstructPoint, smoothed_reconstructPoint, 3); //z<0の点はソート対象外にする？
+
+				//==保存==//
+				cv::FileStorage fs_obj("./reconstructPoints_smoothed.xml", cv::FileStorage::WRITE);
+				write(fs_obj, "points", smoothed_reconstructPoint);
+				std::cout << "smoothed points saved." << std::endl;
+
+				// 描画
+				cv::Mat R = cv::Mat::eye(3,3,CV_64F);
+				cv::Mat t = cv::Mat::zeros(3,1,CV_64F);
+				int key=0;
+				cv::Point3d viewpoint(0.0,0.0,400.0);		// 視点位置
+				cv::Point3d lookatpoint(0.0,0.0,0.0);	// 視線方向
+				const double step = 50;
+
+				// キーボード操作
+				while(true)
+				{
+					//// 回転の更新
+					double x=(lookatpoint.x-viewpoint.x);
+					double y=(lookatpoint.y-viewpoint.y);
+					double z=(lookatpoint.z-viewpoint.z);
+					double pitch =asin(x/sqrt(x*x+z*z))/CV_PI*180.0;
+					double yaw   =asin(-y/sqrt(y*y+z*z))/CV_PI*180.0;
+					eular2rot(yaw, pitch, 0, R);
+					// 移動の更新
+					t.at<double>(0,0)=viewpoint.x;
+					t.at<double>(1,0)=viewpoint.y;
+					t.at<double>(2,0)=viewpoint.z;
+
+					//カメラ画素→3次元点
+					calib.pointCloudRender(reconstructPoint, cam2, std::string("viewer"), R, t);
 
 					key = cv::waitKey(0);
 					if(key=='w')
