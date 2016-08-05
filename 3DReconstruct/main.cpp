@@ -57,7 +57,7 @@ int main()
 	int calib_count = 0;
 
 	//背景の閾値(mm)
-	double thresh = 1200.0;
+	double thresh = 1200.0; //1500
 
 	//背景と対象物の3次元点
 	std::vector<cv::Point3f> reconstructPoint_back;
@@ -347,23 +347,26 @@ int main()
 				}
 
 				//ダウンサンプリング
-				std::vector<cv::Point3f> sampledPoints = getDownSampledPoints(validPoints, 0.005f);
+				//std::vector<cv::Point3f> sampledPoints = getDownSampledPoints(validPoints, 0.005f);//5mm間隔
 
 				//法線を求める
-				std::vector<cv::Point3f> normalVecs = getNormalVectors(sampledPoints);
+				//std::vector<cv::Point3f> normalVecs = getNormalVectors(sampledPoints);
+				std::vector<cv::Point3f> normalVecs = getNormalVectors(validPoints);
 
 				//メッシュを求める
-				std::vector<cv::Point3i> meshes = getMeshVectors(sampledPoints, normalVecs);
+				//std::vector<cv::Point3i> meshes = getMeshVectors(sampledPoints, normalVecs);
+				std::vector<cv::Point3i> meshes = getMeshVectors(validPoints, normalVecs);
 
 				//PLY形式で保存
-				savePLY_with_normal_mesh(sampledPoints, normalVecs, meshes, "reconstructPoint_obj_mesh.ply");
+				//savePLY_with_normal_mesh(sampledPoints, normalVecs, meshes, "C:\\Users\\PC-4\\Desktop\\rawdata_0720\\near\\005\\reconstructPoint_obj_mesh3.ply");
+				savePLY_with_normal_mesh(validPoints, normalVecs, meshes, "C:\\Users\\PC-4\\Desktop\\rawdata_0720\\near\\non\\reconstructPoint_obj_mesh0.ply");
 			}
 			break;
 
 		case '4':
 			{
-				reconstructPoint_back = loadXMLfile("reconstructPoints_background.xml");
-				reconstructPoint_obj = loadXMLfile("reconstructPoints_obj.xml");
+				//reconstructPoint_back = loadXMLfile("reconstructPoints_background.xml");
+				reconstructPoint_obj = loadXMLfile("C:\\Users\\PC-4\\Desktop\\rawdata_0720\\near\\reconstructPoints_obj0.xml");
 
 				//TODO:背景除去
 				for(int i = 0; i < reconstructPoint_obj.size(); i++)
