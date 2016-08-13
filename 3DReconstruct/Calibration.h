@@ -2,7 +2,7 @@
 #define CALIBRATION_H
 
 #include <opencv2\opencv.hpp>
-
+#include <stdlib.h>
 
 class Calibration
 {
@@ -54,6 +54,8 @@ public:
 
 	//メディアンフィルタ
 	float medianfilter(int cx, int cy, int size, std::vector<cv::Point3f> reconstructPoint);
+	//平均フィルタ
+	float movingAveragefilter(int cx, int cy, int size, std::vector<cv::Point3f> reconstructPoint);
 
 	// 3次元点群の描画
 	//void pointCloudRender(const std::vector<cv::Point3f> &reconstructPoint, const std::vector<cv::Point2f> &imagePoint, const cv::Mat &image, std::string &windowName, const cv::Mat& R, const cv::Mat& t);

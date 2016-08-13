@@ -551,11 +551,11 @@ int main()
 
 		case '6':
 			{
-				std::vector<cv::Point3f> reconstructPoint = loadXMLfile("reconstructPoints_background.xml");
+				std::vector<cv::Point3f> reconstructPoint = loadXMLfile("reconstructPoints_camera.xml");
 				std::vector<cv::Point3f> smoothed_reconstructPoint;
 
 				//メディアンフィルタによる平滑化
-				calib.smoothReconstructPoints(reconstructPoint, smoothed_reconstructPoint, 3); //z<0の点はソート対象外にする？
+				calib.smoothReconstructPoints(reconstructPoint, smoothed_reconstructPoint, 1); //z<0の点はソート対象外にする？
 
 				//==保存==//
 				cv::FileStorage fs_obj("./reconstructPoints_smoothed.xml", cv::FileStorage::WRITE);
@@ -586,7 +586,7 @@ int main()
 					t.at<double>(2,0)=viewpoint.z;
 
 					//カメラ画素→3次元点
-					calib.pointCloudRender(reconstructPoint, cam2, std::string("viewer"), R, t);
+					calib.pointCloudRender(smoothed_reconstructPoint, cam2, std::string("viewer"), R, t);
 
 					key = cv::waitKey(0);
 					if(key=='w')

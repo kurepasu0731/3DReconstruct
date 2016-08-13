@@ -1,6 +1,6 @@
 #include "Calibration.h"
 #include "Header.h"
-
+#include "mySmoothing.h"
 
 
 // 画像からチェッカーパターンの交点を取得
@@ -337,17 +337,104 @@ void Calibration::reconstruction(std::vector<cv::Point3f> &reconstructPoint, con
 //復元点の平滑化処理
 void Calibration::smoothReconstructPoints(std::vector<cv::Point3f> &reconstructPoint, std::vector<cv::Point3f> &smoothed_reconstructPoint, int size)
 {
+#if 0
 	std::vector<cv::Point3f> smoothedPoints;
+	float z__  = -1.0f;
 	for(int h = (size - 1)/2; h < CAMERA_HEIGHT- (size - 1)/2; h++)
 		for(int w = (size - 1)/2; w < CAMERA_WIDTH - (size - 1)/2; w++)
 		{
 			//メディアンフィルタによる平滑化
-			float z__ = medianfilter(w, h, size, reconstructPoint);
-			if(z__ >= 0.0f) //カメラより手前側にあるはず
+//			z__ = medianfilter(w, h, size, reconstructPoint);
+			z__ = movingAveragefilter(w, h, size, reconstructPoint);
+
+//			if(z__ >= 0.0f) //カメラより手前側にあるはず
+			if(z__ != -1.0f) //エラー値でなかったら,
 				smoothedPoints.emplace_back(getWorldpoint(w, h, z__));
 			else
 				smoothedPoints.emplace_back(cv::Point3f(-1.0f, -1.0f, -1.0f));
 		}
+#endif
+
+#if 1//長岡さんのやつ(移動平均)
+		//配列動的確保(2次元配列)
+		float **depthArray = new float*[CAMERA_WIDTH];
+		float** dst  = new float*[CAMERA_WIDTH];
+		for(int i = 0; i < CAMERA_HEIGHT; i++)
+		{
+			depthArray[i] = new float[CAMERA_WIDTH];
+			dst[i] = new float[CAMERA_WIDTH];
+		}
+		//std::vector<cv::Point3f> -> float[][]へ変換
+		for(int i = 0; i < CAMERA_HEIGHT; i++)
+			for(int j = 0; j < CAMERA_WIDTH; j++)
+			{
+				depthArray[i][j] = reconstructPoint[i * CAMERA_WIDTH + j].z;
+			}
+		//移動平均フィルタ
+		mySmooth::moving_average(size, depthArray, dst, CAMERA_WIDTH, CAMERA_HEIGHT);
+		//  float[][]　->　std::vector<cv::Point3f>へ変換
+		cv::Point3f pt3d;
+		for(int i = 0; i < CAMERA_HEIGHT; i++)
+			for(int j = 0; j < CAMERA_WIDTH; j++)
+			{
+				//std::cout << "dst:" << dst[i][j] << std::endl;
+				if(dst[i][j] > 0.0f) //エラー値じゃなかったら
+				{
+					pt3d = getWorldpoint(j, i, dst[i][j]);
+					//std::cout << "pt3d.z: " << pt3d.z << std::endl;
+					smoothed_reconstructPoint.emplace_back(pt3d);
+					//std::cout << "reconstruct: " << smoothed_reconstructPoint[i * CAMERA_WIDTH + j].z << std::endl;
+				}
+				else
+					smoothed_reconstructPoint.emplace_back(cv::Point3f(-1.0f, -1.0f, -1.0f));
+			}
+
+		//解放
+		for(int i = 0; i < CAMERA_HEIGHT; i++)
+		{
+			delete[] depthArray[i];
+			delete[] dst[i];
+		}
+		delete[] depthArray;
+		delete[] dst;
+#endif
+
+#if 0
+//長岡さんのやつ(メディアンフィルタ)
+		//配列動的確保(1次元配列)
+		float* depthArray = new float[CAMERA_WIDTH * CAMERA_HEIGHT];
+		float* dst  = new float[CAMERA_WIDTH * CAMERA_HEIGHT];
+		//std::vector<cv::Point3f> -> float[][]へ変換
+		for(int i = 0; i < CAMERA_WIDTH * CAMERA_HEIGHT; i++)
+		{
+				depthArray[i] = reconstructPoint[i].z;
+		}
+
+		//メディアンフィルタ
+		mySmooth::median_filter(size, depthArray, dst, CAMERA_HEIGHT, CAMERA_WIDTH);
+		//  float[][]　->　std::vector<cv::Point3f>へ変換
+		cv::Point3f pt3d;
+		int x, y;
+		for(int i = 0; i < CAMERA_WIDTH * CAMERA_HEIGHT; i++)
+		{
+			x = i % CAMERA_WIDTH;
+			y = (int)(i / CAMERA_WIDTH);
+			//std::cout << "dst:" << dst[i][j] << std::endl;
+			if(dst[i] > 0.0f) //エラー値じゃなかったら
+			{
+				pt3d = getWorldpoint(x, y, dst[i]);
+				//std::cout << "pt3d.z: " << pt3d.z << std::endl;
+				smoothed_reconstructPoint.emplace_back(pt3d);
+				//std::cout << "reconstruct: " << smoothed_reconstructPoint[i * CAMERA_WIDTH + j].z << std::endl;
+			}
+			else
+				smoothed_reconstructPoint.emplace_back(cv::Point3f(-1.0f, -1.0f, -1.0f));
+		}
+
+		//解放
+		delete[] depthArray;
+		delete[] dst;
+#endif
 }
 
 //カメラ画像座標と深度値から、カメラ中心の3次元点にする
@@ -429,6 +516,18 @@ void sort(float* a, int length){
     quickSort(a,0,length-1);
   }
 
+/*ソート関数*/
+int float_sort(const void * a, const void * b){
+	/* 引数はvoid*型と規定されているのでfloat型にcastする */
+	if( *(float * )a < *( float * )b ) {
+		return -1;
+	}
+	else
+		if( *( float * )a == *( float * )b ) {
+			return 0;
+		}
+	return 1;
+}
 
 //メディアンフィルタ
 float Calibration::medianfilter(int cx, int cy, int size, std::vector<cv::Point3f> reconstructPoint)
@@ -442,8 +541,10 @@ float Calibration::medianfilter(int cx, int cy, int size, std::vector<cv::Point3
 			Zs[iter] = reconstructPoint[h * CAMERA_WIDTH + w].z;
 			iter++;
 		}
-	//並べ替え
+	//並べ替え(自作クイックソート)
 	sort(Zs, size*size);
+	//stdlibのクイックソート
+	qsort((void *) Zs, size * size, sizeof(Zs[0]), float_sort);
 
 	//表示
 	for(int i = 0; i < size*size; i++)
@@ -456,6 +557,35 @@ float Calibration::medianfilter(int cx, int cy, int size, std::vector<cv::Point3
 	return dst;
 }
 
+//平均フィルタ
+float Calibration::movingAveragefilter(int cx, int cy, int size, std::vector<cv::Point3f> reconstructPoint)
+{
+	//並べ替え要素
+	float sum = 0.0f;
+	int num = 0;//有効値のカウンタ
+	float zi = -1.0f;
+	for(int h = cy - (size - 1)/2; h <= cy + (size - 1)/2; h++)
+		for(int w = cx - (size - 1)/2; w <= cx + (size - 1)/2; w++)
+		{
+			zi =  reconstructPoint[h * CAMERA_WIDTH + w].z ;
+			if(zi >= 0)
+			{
+				sum += zi;
+				num++;
+			}
+		}
+
+	//カーネルの規定値以上が有効値の場合、有効値の平均を取って返す
+	if(num >= size * size * 0.2)
+	{
+		//平均を取る
+		return (float)(sum / num);
+
+		//std::cout << "(" << cx << ", " << "cy): " << dst << std::endl;
+	}
+	//有効値が規定値以下の時は、エラー値を返す
+	else return -1.0f;
+}
 
 // 3次元点群の描画
 void Calibration::pointCloudRender(const std::vector<cv::Point3f> &reconstructPoint, const cv::Mat &image, std::string &windowName, const cv::Mat& R, const cv::Mat& t)
