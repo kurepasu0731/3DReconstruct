@@ -555,7 +555,7 @@ int main()
 				std::vector<cv::Point3f> smoothed_reconstructPoint;
 
 				//メディアンフィルタによる平滑化
-				calib.smoothReconstructPoints(reconstructPoint, smoothed_reconstructPoint, 1); //z<0の点はソート対象外にする？
+				calib.smoothReconstructPoints(reconstructPoint, smoothed_reconstructPoint, 11); //z<0の点はソート対象外にする？
 
 				//==保存==//
 				cv::FileStorage fs_obj("./reconstructPoints_smoothed.xml", cv::FileStorage::WRITE);

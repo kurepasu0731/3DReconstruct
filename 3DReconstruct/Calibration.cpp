@@ -445,8 +445,8 @@ cv::Point3f Calibration::getWorldpoint(int u, int v, float Z)
 	double y_ = (v - cam_K.at<double>(1,2)) / cam_K.at<double>(1,1); 
 	//òcÇ›èúãé
 	double r2 = x_ * x_ + y_ * y_; 
-	double x__ = x_ * (1 + cam_dist.at<double>(0, 0) * r2 + cam_dist.at<double>(0, 1) * r2 * r2) + 2 * cam_dist.at<double>(0, 2) * x_ * y_ + cam_dist.at<double>(0, 3) * (r2 + 2 * x_ * x_);
-	double y__ = y_ * (1 + cam_dist.at<double>(0, 0) * r2 + cam_dist.at<double>(0, 1) * r2 * r2) + cam_dist.at<double>(0, 2) * (r2 + 2 * y_ * y_) + 2 * cam_dist.at<double>(0, 3) * x_ * y_;
+	double x__ = x_ * (1 - cam_dist.at<double>(0, 0) * r2 - cam_dist.at<double>(0, 1) * r2 * r2) - 2 * cam_dist.at<double>(0, 2) * x_ * y_ - cam_dist.at<double>(0, 3) * (r2 + 2 * x_ * x_);
+	double y__ = y_ * (1 - cam_dist.at<double>(0, 0) * r2 - cam_dist.at<double>(0, 1) * r2 * r2) - cam_dist.at<double>(0, 2) * (r2 + 2 * y_ * y_) - 2 * cam_dist.at<double>(0, 3) * x_ * y_;
 	//òcÇ›ÇÃÇ»Ç¢ê≥ãKâªç¿ïWÇ©ÇÁ3éüå≥ì_Ç…Ç∑ÇÈ
 	cv::Point3f _worldPoint((float) x__ * Z, (float) y__ * Z, Z);
 
