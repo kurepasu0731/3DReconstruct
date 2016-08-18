@@ -340,6 +340,8 @@ int main()
 		//PLY形式で保存
 		case '3':
 			{
+				//reconstructPoint_obj = loadXMLfile("./reconstructPoints_obj_backremove.xml");
+
 				//有効な点のみ取りだす(= -1は除く)
 				std::vector<cv::Point3f> validPoints;
 				for(int n = 0; n < reconstructPoint_obj.size(); n++)
@@ -360,36 +362,46 @@ int main()
 
 				//PLY形式で保存
 				//savePLY_with_normal_mesh(sampledPoints, normalVecs, meshes, "C:\\Users\\PC-4\\Desktop\\rawdata_0720\\near\\005\\reconstructPoint_obj_mesh3.ply");
-				savePLY_with_normal_mesh(validPoints, normalVecs, meshes, "C:\\Users\\PC-4\\Desktop\\rawdata_0720\\near\\non\\reconstructPoint_obj_mesh0.ply");
+			//	savePLY_with_normal_mesh(validPoints, normalVecs, meshes, "C:\\Users\\PC-4\\Desktop\\rawdata_0720\\near\\non\\reconstructPoint_obj_mesh0.ply");
+				savePLY_with_normal_mesh(validPoints, normalVecs, meshes, "reconstructPoints_obj_backremove.ply");
 			}
 			break;
 
 		case '4':
 			{
+				//マネキン用
 				//reconstructPoint_back = loadXMLfile("reconstructPoints_background.xml");
-				reconstructPoint_obj = loadXMLfile("C:\\Users\\PC-4\\Desktop\\rawdata_0720\\near\\reconstructPoints_obj0.xml");
+			//	reconstructPoint_obj = loadXMLfile("C:\\Users\\PC-4\\Desktop\\rawdata_0720\\near\\reconstructPoints_obj0.xml");
+				
+				//どら用
+				reconstructPoint_back = loadXMLfile("reconstructPoints_smoothed.xml");
+				reconstructPoint_obj = loadXMLfile("reconstructPoints_obj.xml");
 
 				//TODO:背景除去
 				for(int i = 0; i < reconstructPoint_obj.size(); i++)
 				{
-					//閾値よりも深度の変化が小さかったら、(-1,-1,-1)で埋める
-					//if(reconstructPoint_obj[i].z == -1 || reconstructPoint_back[i].z == -1 || abs(reconstructPoint_obj[i].z - reconstructPoint_back[i].z) < thresh)
-					//reconstructPoint_obj[i].x = -1;
-					//reconstructPoint_obj[i].y = -1;
-					//reconstructPoint_obj[i].z = -1;
-
-					if(reconstructPoint_obj[i].z >= thresh)
+					//閾値よりも深度の変化が小さかったら、(-1,-1,-1)で埋める(背景を平滑化してたらいい感じ)
+					if(reconstructPoint_obj[i].z == -1.0f || reconstructPoint_back[i].z == -1.0f || abs(reconstructPoint_obj[i].z - reconstructPoint_back[i].z) < 100.0f)
 					{
 						reconstructPoint_obj[i].x = -1;
 						reconstructPoint_obj[i].y = -1;
 						reconstructPoint_obj[i].z = -1;
 					}
+
+					//マネキン用
+					//if(reconstructPoint_obj[i].z >= thresh)
+					//{
+					//	reconstructPoint_obj[i].x = -1;
+					//	reconstructPoint_obj[i].y = -1;
+					//	reconstructPoint_obj[i].z = -1;
+					//}
 				}
 
 				//==保存==//
 				cv::FileStorage fs_obj("./reconstructPoints_obj_backremove.xml", cv::FileStorage::WRITE);
 				write(fs_obj, "points", reconstructPoint_obj);
 				std::cout << "back removed object points saved." << std::endl;
+
 
 				// 描画
 				cv::Mat R = cv::Mat::eye(3,3,CV_64F);
@@ -555,7 +567,7 @@ int main()
 				std::vector<cv::Point3f> smoothed_reconstructPoint;
 
 				//メディアンフィルタによる平滑化
-				calib.smoothReconstructPoints(reconstructPoint, smoothed_reconstructPoint, 1); //z<0の点はソート対象外にする？
+				calib.smoothReconstructPoints(reconstructPoint, smoothed_reconstructPoint, 11); //z<0の点はソート対象外にする？
 
 				//==保存==//
 				cv::FileStorage fs_obj("./reconstructPoints_smoothed.xml", cv::FileStorage::WRITE);
